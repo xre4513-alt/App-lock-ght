@@ -692,7 +692,8 @@ jobs:
                   for (app in apps) {
                       val cb = CheckBox(this).apply {
                           text = pm.getApplicationLabel(app).toString()
-                          text.setTextColor(0xFFFFFFFF.toInt())
+                          // Fixed here: removed 'text.'
+                          setTextColor(0xFFFFFFFF.toInt())
                           isChecked = locked.contains(app.packageName)
                           setOnCheckedChangeListener { _, checked ->
                               if (checked) locked.add(app.packageName)
