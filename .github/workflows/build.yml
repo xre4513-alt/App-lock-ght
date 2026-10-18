@@ -246,6 +246,60 @@ jobs:
           </vector>
           EOF
 
+          # Re-added missing activity_main.xml
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="24dp"
+              android:gravity="center"
+              android:background="@color/background">
+
+              <ImageView
+                  android:layout_width="100dp"
+                  android:layout_height="100dp"
+                  android:src="@drawable/ic_launcher"
+                  android:layout_marginBottom="16dp"/>
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="App Lock"
+                  android:textColor="@color/textColor"
+                  android:textSize="32sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="40dp"/>
+
+              <Button
+                  android:id="@+id/btnApps"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Select Apps to Lock"
+                  android:backgroundTint="@color/buttonBg"
+                  android:textColor="@color/textColor"
+                  android:layout_marginBottom="16dp"/>
+
+              <Button
+                  android:id="@+id/btnAccessibility"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Enable Accessibility Service"
+                  android:backgroundTint="@color/buttonBg"
+                  android:textColor="@color/textColor"
+                  android:layout_marginBottom="16dp"/>
+
+              <Button
+                  android:id="@+id/btnChangeLock"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Change PIN / Fingerprint"
+                  android:backgroundTint="@color/buttonBg"
+                  android:textColor="@color/textColor"/>
+          </LinearLayout>
+          EOF
+
           cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
