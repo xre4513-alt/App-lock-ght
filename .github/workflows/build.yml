@@ -89,8 +89,8 @@ jobs:
                   applicationId "com.applock"
                   minSdk 24
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 2
+                  versionName "2.0"
               }
 
               buildTypes {
@@ -123,9 +123,6 @@ jobs:
               xmlns:tools="http://schemas.android.com/tools">
 
               <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-              <uses-permission android:name="android.permission.USE_FINGERPRINT" />
-              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
                   tools:ignore="ProtectedPermissions" />
               <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -159,8 +156,9 @@ jobs:
                   <activity
                       android:name=".LockActivity"
                       android:exported="false"
-                      android:launchMode="singleTask"
-                      android:excludeFromRecents="true" />
+                      android:launchMode="singleInstance"
+                      android:excludeFromRecents="true"
+                      android:noHistory="true" />
 
                   <activity android:name=".AppListActivity" android:exported="false" />
 
@@ -188,11 +186,12 @@ jobs:
 
           cat > app/src/main/res/values/colors.xml << 'EOF'
           <resources>
-              <color name="primary">#6200EE</color>
-              <color name="primaryDark">#3700B3</color>
-              <color name="accent">#03DAC6</color>
-              <color name="background">#121212</color>
+              <color name="primary">#1A1A24</color>
+              <color name="primaryDark">#12121A</color>
+              <color name="accent">#4CAF50</color>
+              <color name="background">#0F0F15</color>
               <color name="textColor">#FFFFFF</color>
+              <color name="buttonBg">#2A2A35</color>
           </resources>
           EOF
 
@@ -203,6 +202,7 @@ jobs:
                   <item name="colorPrimaryDark">@color/primaryDark</item>
                   <item name="colorAccent">@color/accent</item>
                   <item name="android:windowBackground">@color/background</item>
+                  <item name="android:statusBarColor">@color/background</item>
               </style>
           </resources>
           EOF
@@ -215,7 +215,7 @@ jobs:
               android:accessibilityFlags="flagDefault"
               android:canRetrieveWindowContent="true"
               android:description="@string/accessibility_desc"
-              android:notificationTimeout="100" />
+              android:notificationTimeout="50" />
           EOF
 
           cat > app/src/main/res/drawable/ic_lock.xml << 'EOF'
@@ -227,79 +227,116 @@ jobs:
           </vector>
           EOF
 
+          cat > app/src/main/res/drawable/ic_fingerprint.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp" android:height="48dp"
+              android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#4CAF50"
+                  android:pathData="M17.81,4.47c-0.08,0 -0.16,-0.02 -0.23,-0.06C15.66,3.42 14,3 12.01,3c-1.98,0 -3.86,0.47 -5.57,1.41 -0.24,0.13 -0.54,0.04 -0.68,-0.2 -0.13,-0.24 -0.04,-0.54 0.2,-0.68C7.82,2.52 9.86,2 12.01,2c2.13,0 3.99,0.47 6.03,1.52 0.25,0.13 0.34,0.43 0.21,0.67 -0.09,0.18 -0.26,0.28 -0.44,0.28zM3.5,9.72c-0.1,0 -0.2,-0.03 -0.29,-0.09 -0.23,-0.16 -0.28,-0.47 -0.12,-0.7 0.99,-1.4 2.25,-2.5 3.75,-3.27C9.98,4.04 14,4.03 17.15,5.65c1.5,0.77 2.76,1.86 3.75,3.25 0.16,0.22 0.11,0.54 -0.12,0.7 -0.23,0.16 -0.54,0.11 -0.7,-0.12 -0.9,-1.26 -2.04,-2.25 -3.39,-2.94 -2.87,-1.47 -6.54,-1.47 -9.4,0.01 -1.36,0.7 -2.5,1.7 -3.4,2.96 -0.08,0.14 -0.23,0.21 -0.39,0.21zM9.75,21.79c-0.13,0 -0.26,-0.05 -0.35,-0.15 -0.87,-0.87 -1.34,-1.43 -2.01,-2.64 -0.69,-1.23 -1.05,-2.73 -1.05,-4.34 0,-2.97 2.54,-5.39 5.66,-5.39 3.12,0 5.66,2.42 5.66,5.39 0,0.28 -0.22,0.5 -0.5,0.5s-0.5,-0.22 -0.5,-0.5c0,-2.42 -2.09,-4.39 -4.66,-4.39s-4.66,1.97 -4.66,4.39c0,1.38 0.3,2.63 0.88,3.66 0.61,1.08 1.02,1.57 1.8,2.36 0.19,0.19 0.19,0.51 0,0.71 -0.09,0.09 -0.22,0.15 -0.35,0.15zM16.92,19.94c-1.19,0 -2.24,-0.3 -3.1,-0.89 -1.49,-1.01 -2.38,-2.65 -2.38,-4.39 0,-0.28 0.22,-0.5 0.5,-0.5s0.5,0.22 0.5,0.5c0,1.41 0.72,2.74 1.94,3.56 0.71,0.48 1.54,0.71 2.54,0.71 0.24,0 0.64,-0.03 1.04,-0.1 0.27,-0.05 0.53,0.13 0.58,0.41 0.05,0.27 -0.13,0.53 -0.41,0.58 -0.57,0.11 -1.07,0.12 -1.21,0.12zM14.91,22c-0.04,0 -0.09,-0.01 -0.13,-0.02 -1.59,-0.44 -2.63,-1.03 -3.72,-2.1 -1.4,-1.39 -2.17,-3.24 -2.17,-5.22 0,-1.62 1.38,-2.94 3.08,-2.94 1.7,0 3.08,1.32 3.08,2.94 0,1.07 0.93,1.94 2.08,1.94s2.08,-0.87 2.08,-1.94c0,-3.77 -3.25,-6.83 -7.25,-6.83 -2.84,0 -5.44,1.58 -6.61,4.03 -0.39,0.81 -0.59,1.76 -0.59,2.8 0,0.78 0.07,2.01 0.67,3.61 0.1,0.26 -0.03,0.55 -0.29,0.64 -0.26,0.1 -0.55,-0.04 -0.64,-0.29 -0.49,-1.31 -0.73,-2.61 -0.73,-3.96 0,-1.2 0.23,-2.29 0.68,-3.24 1.33,-2.79 4.28,-4.6 7.51,-4.6 4.55,0 8.25,3.51 8.25,7.83 0,1.62 -1.38,2.94 -3.08,2.94s-3.08,-1.32 -3.08,-2.94c0,-1.07 -0.93,-1.94 -2.08,-1.94s-2.08,0.87 -2.08,1.94c0,1.71 0.66,3.31 1.87,4.51 0.95,0.94 1.86,1.46 3.27,1.85 0.27,0.07 0.42,0.35 0.35,0.61 -0.05,0.23 -0.26,0.38 -0.48,0.38z"/>
+          </vector>
+          EOF
+
           cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="108dp" android:height="108dp"
               android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#6200EE" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#4CAF50" android:pathData="M0,0h108v108h-108z"/>
               <path android:fillColor="#FFFFFF"
                   android:pathData="M54,30 C44,30 36,38 36,48 L36,54 L30,54 L30,78 L78,78 L78,54 L72,54 L72,48 C72,38 64,30 54,30 Z M54,36 C61,36 66,41 66,48 L66,54 L42,54 L42,48 C42,41 47,36 54,36 Z M54,62 C57,62 60,65 60,68 C60,71 57,74 54,74 C51,74 48,71 48,68 C48,65 51,62 54,62 Z"/>
           </vector>
           EOF
 
-          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          # Enhanced Lock Screen with Custom Keypad
+          cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
-              android:padding="24dp"
               android:gravity="center"
-              android:background="@color/background">
+              android:background="@color/background"
+              android:padding="24dp">
 
               <ImageView
-                  android:layout_width="100dp"
-                  android:layout_height="100dp"
-                  android:src="@drawable/ic_launcher"
-                  android:layout_marginBottom="16dp"/>
+                  android:id="@+id/btnBiometric"
+                  android:layout_width="64dp"
+                  android:layout_height="64dp"
+                  android:src="@drawable/ic_fingerprint"
+                  android:layout_marginBottom="16dp"
+                  android:layout_gravity="center_horizontal"/>
 
               <TextView
+                  android:id="@+id/tvAppName"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="App Lock"
+                  android:text="App Locked"
                   android:textColor="@color/textColor"
+                  android:textSize="20sp"
+                  android:layout_marginBottom="24dp"/>
+
+              <TextView
+                  android:id="@+id/tvPinDisplay"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="----"
+                  android:textColor="@color/accent"
                   android:textSize="32sp"
+                  android:letterSpacing="0.5"
                   android:textStyle="bold"
-                  android:layout_marginBottom="40dp"/>
+                  android:layout_marginBottom="32dp"/>
 
-              <Button
-                  android:id="@+id/btnApps"
-                  android:layout_width="match_parent"
+              <GridLayout
+                  android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="Select Apps to Lock"
-                  android:layout_marginBottom="12dp"/>
+                  android:columnCount="3"
+                  android:rowCount="4">
 
-              <Button
-                  android:id="@+id/btnAccessibility"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Enable Accessibility Service"
-                  android:layout_marginBottom="12dp"/>
-
-              <Button
-                  android:id="@+id/btnChangeLock"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Change PIN / Pattern"/>
+                  <!-- Row 1 -->
+                  <Button android:text="1" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="2" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="3" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  
+                  <!-- Row 2 -->
+                  <Button android:text="4" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="5" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="6" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  
+                  <!-- Row 3 -->
+                  <Button android:text="7" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="8" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="9" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  
+                  <!-- Row 4 -->
+                  <Button android:text="Clear" android:textSize="16sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onClearClick"/>
+                  <Button android:text="0" android:textSize="24sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onNumberClick"/>
+                  <Button android:text="Del" android:textSize="16sp" android:textColor="@color/textColor" android:backgroundTint="@color/buttonBg" android:layout_width="80dp" android:layout_height="80dp" android:layout_margin="8dp" android:onClick="onDeleteClick"/>
+              </GridLayout>
           </LinearLayout>
           EOF
 
+          # Enhanced Setup Screen (PIN only + Fingerprint toggle)
           cat > app/src/main/res/layout/activity_setup.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
-              android:padding="24dp"
+              android:padding="32dp"
               android:gravity="center"
               android:background="@color/background">
+
+              <ImageView
+                  android:layout_width="80dp"
+                  android:layout_height="80dp"
+                  android:src="@drawable/ic_launcher"
+                  android:layout_marginBottom="24dp"/>
 
               <TextView
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="Setup App Lock"
+                  android:text="Setup 4-Digit PIN"
                   android:textColor="@color/textColor"
-                  android:textSize="28sp"
+                  android:textSize="24sp"
                   android:textStyle="bold"
                   android:layout_marginBottom="24dp"/>
 
@@ -307,93 +344,31 @@ jobs:
                   android:id="@+id/etPin"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:hint="Enter 4-digit PIN"
+                  android:hint="Enter 4-Digit PIN"
                   android:textColorHint="#888888"
                   android:textColor="@color/textColor"
                   android:inputType="numberPassword"
                   android:maxLength="4"
-                  android:layout_marginBottom="12dp"/>
+                  android:textSize="20sp"
+                  android:layout_marginBottom="16dp"/>
 
-              <EditText
-                  android:id="@+id/etPattern"
+              <CheckBox
+                  android:id="@+id/cbFingerprint"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:hint="Pattern (e.g., 0-1-2-5-8)"
-                  android:textColorHint="#888888"
+                  android:text="Enable Fingerprint Unlock"
                   android:textColor="@color/textColor"
-                  android:layout_marginBottom="24dp"/>
+                  android:textSize="16sp"
+                  android:buttonTint="@color/accent"
+                  android:layout_marginBottom="32dp"/>
 
               <Button
                   android:id="@+id/btnSave"
                   android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Save"/>
-          </LinearLayout>
-          EOF
-
-          cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:orientation="vertical"
-              android:padding="24dp"
-              android:gravity="center"
-              android:background="@color/background">
-
-              <ImageView
-                  android:layout_width="80dp"
-                  android:layout_height="80dp"
-                  android:src="@drawable/ic_lock"
-                  android:layout_marginBottom="16dp"/>
-
-              <TextView
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="App Locked"
-                  android:textColor="@color/textColor"
-                  android:textSize="24sp"
-                  android:layout_marginBottom="24dp"/>
-
-              <EditText
-                  android:id="@+id/etUnlockPin"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:hint="Enter 4-digit PIN"
-                  android:textColorHint="#888888"
-                  android:textColor="@color/textColor"
-                  android:inputType="numberPassword"
-                  android:maxLength="4"
-                  android:layout_marginBottom="8dp"/>
-
-              <Button
-                  android:id="@+id/btnUnlockPin"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Unlock with PIN"
-                  android:layout_marginBottom="12dp"/>
-
-              <EditText
-                  android:id="@+id/etUnlockPattern"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:hint="Enter Pattern"
-                  android:textColorHint="#888888"
-                  android:textColor="@color/textColor"
-                  android:layout_marginBottom="8dp"/>
-
-              <Button
-                  android:id="@+id/btnUnlockPattern"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Unlock with Pattern"
-                  android:layout_marginBottom="12dp"/>
-
-              <Button
-                  android:id="@+id/btnBiometric"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Use Fingerprint / Face"/>
+                  android:layout_height="56dp"
+                  android:text="Save Settings"
+                  android:backgroundTint="@color/accent"
+                  android:textColor="#000000"/>
           </LinearLayout>
           EOF
 
@@ -411,7 +386,8 @@ jobs:
                   android:text="Select Apps to Lock"
                   android:textColor="@color/textColor"
                   android:textSize="22sp"
-                  android:padding="16dp"/>
+                  android:textStyle="bold"
+                  android:padding="24dp"/>
 
               <ScrollView
                   android:layout_width="match_parent"
@@ -428,8 +404,10 @@ jobs:
               <Button
                   android:id="@+id/btnSaveApps"
                   android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:text="Save"
+                  android:layout_height="56dp"
+                  android:text="Save & Apply"
+                  android:backgroundTint="@color/accent"
+                  android:textColor="#000000"
                   android:layout_margin="16dp"/>
           </LinearLayout>
           EOF
@@ -445,9 +423,9 @@ jobs:
           object Prefs {
               private const val FILE = "applock_prefs"
               private const val KEY_PIN = "pin"
-              private const val KEY_PATTERN = "pattern"
               private const val KEY_SETUP = "setup_done"
               private const val KEY_APPS = "locked_apps"
+              private const val KEY_BIOMETRIC = "biometric_enabled"
 
               private fun prefs(ctx: Context): SharedPreferences {
                   return try {
@@ -466,13 +444,13 @@ jobs:
 
               fun setPin(ctx: Context, pin: String) = prefs(ctx).edit().putString(KEY_PIN, pin).apply()
               fun getPin(ctx: Context): String? = prefs(ctx).getString(KEY_PIN, null)
-              fun setPattern(ctx: Context, p: String) = prefs(ctx).edit().putString(KEY_PATTERN, p).apply()
-              fun getPattern(ctx: Context): String? = prefs(ctx).getString(KEY_PATTERN, null)
               fun isSetup(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_SETUP, false)
               fun setSetup(ctx: Context, done: Boolean) = prefs(ctx).edit().putBoolean(KEY_SETUP, done).apply()
               fun getLockedApps(ctx: Context): MutableSet<String> =
                   (prefs(ctx).getStringSet(KEY_APPS, mutableSetOf()) ?: mutableSetOf()).toMutableSet()
               fun setLockedApps(ctx: Context, s: Set<String>) = prefs(ctx).edit().putStringSet(KEY_APPS, s).apply()
+              fun isBiometricEnabled(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_BIOMETRIC, false)
+              fun setBiometricEnabled(ctx: Context, enabled: Boolean) = prefs(ctx).edit().putBoolean(KEY_BIOMETRIC, enabled).apply()
           }
           EOF
 
@@ -519,6 +497,7 @@ jobs:
           import android.content.Intent
           import android.os.Bundle
           import android.widget.Button
+          import android.widget.CheckBox
           import android.widget.EditText
           import android.widget.Toast
           import androidx.appcompat.app.AppCompatActivity
@@ -529,25 +508,21 @@ jobs:
                   setContentView(R.layout.activity_setup)
 
                   val pinInput = findViewById<EditText>(R.id.etPin)
-                  val patternInput = findViewById<EditText>(R.id.etPattern)
+                  val cbFingerprint = findViewById<CheckBox>(R.id.cbFingerprint)
                   val saveBtn = findViewById<Button>(R.id.btnSave)
 
                   saveBtn.setOnClickListener {
                       val pin = pinInput.text.toString()
-                      val pattern = patternInput.text.toString()
 
                       if (pin.length != 4 || !pin.all { it.isDigit() }) {
-                          Toast.makeText(this, "Enter 4-digit PIN", Toast.LENGTH_SHORT).show()
-                          return@setOnClickListener
-                      }
-                      if (pattern.isEmpty()) {
-                          Toast.makeText(this, "Enter pattern (e.g., 0-1-2-5-8)", Toast.LENGTH_SHORT).show()
+                          Toast.makeText(this, "Enter valid 4-digit PIN", Toast.LENGTH_SHORT).show()
                           return@setOnClickListener
                       }
 
                       Prefs.setPin(this, pin)
-                      Prefs.setPattern(this, pattern)
+                      Prefs.setBiometricEnabled(this, cbFingerprint.isChecked)
                       Prefs.setSetup(this, true)
+                      
                       Toast.makeText(this, "Setup complete!", Toast.LENGTH_SHORT).show()
                       startActivity(Intent(this, MainActivity::class.java))
                       finish()
@@ -556,12 +531,15 @@ jobs:
           }
           EOF
 
+          # Fast Lock Activity with Custom Keypad Logic
           cat > app/src/main/java/com/applock/LockActivity.kt << 'EOF'
           package com.applock
 
           import android.os.Bundle
+          import android.view.View
           import android.widget.Button
-          import android.widget.EditText
+          import android.widget.ImageView
+          import android.widget.TextView
           import android.widget.Toast
           import androidx.appcompat.app.AppCompatActivity
           import androidx.biometric.BiometricManager
@@ -569,50 +547,82 @@ jobs:
           import androidx.core.content.ContextCompat
 
           class LockActivity : AppCompatActivity() {
+              private var currentPin = ""
+              private lateinit var tvPinDisplay: TextView
+              private lateinit var btnBiometric: ImageView
+
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_lock)
 
-                  showBiometric()
+                  tvPinDisplay = findViewById(R.id.tvPinDisplay)
+                  btnBiometric = findViewById(R.id.btnBiometric)
 
-                  val pinInput = findViewById<EditText>(R.id.etUnlockPin)
-                  val patternInput = findViewById<EditText>(R.id.etUnlockPattern)
-
-                  findViewById<Button>(R.id.btnUnlockPin).setOnClickListener {
-                      if (pinInput.text.toString() == Prefs.getPin(this)) unlock()
-                      else {
-                          Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show()
-                          pinInput.text?.clear()
-                      }
+                  if (Prefs.isBiometricEnabled(this)) {
+                      btnBiometric.visibility = View.VISIBLE
+                      showBiometric()
+                  } else {
+                      btnBiometric.visibility = View.GONE
                   }
 
-                  findViewById<Button>(R.id.btnUnlockPattern).setOnClickListener {
-                      if (patternInput.text.toString() == Prefs.getPattern(this)) unlock()
-                      else {
-                          Toast.makeText(this, "Wrong Pattern", Toast.LENGTH_SHORT).show()
-                          patternInput.text?.clear()
-                      }
-                  }
+                  btnBiometric.setOnClickListener { showBiometric() }
+              }
 
-                  findViewById<Button>(R.id.btnBiometric).setOnClickListener { showBiometric() }
+              fun onNumberClick(view: View) {
+                  if (currentPin.length < 4) {
+                      currentPin += (view as Button).text.toString()
+                      updateDisplay()
+                      if (currentPin.length == 4) verifyPin()
+                  }
+              }
+
+              fun onDeleteClick(view: View) {
+                  if (currentPin.isNotEmpty()) {
+                      currentPin = currentPin.substring(0, currentPin.length - 1)
+                      updateDisplay()
+                  }
+              }
+
+              fun onClearClick(view: View) {
+                  currentPin = ""
+                  updateDisplay()
+              }
+
+              private fun updateDisplay() {
+                  val display = currentPin + "-".repeat(4 - currentPin.length)
+                  tvPinDisplay.text = display
+              }
+
+              private fun verifyPin() {
+                  if (currentPin == Prefs.getPin(this)) {
+                      unlock()
+                  } else {
+                      Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show()
+                      currentPin = ""
+                      updateDisplay()
+                  }
               }
 
               private fun showBiometric() {
                   val bm = BiometricManager.from(this)
-                  val auth = BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                          BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                  // Only BIOMETRIC_STRONG, removed DEVICE_CREDENTIAL so phone's system PIN doesn't show
+                  val auth = BiometricManager.Authenticators.BIOMETRIC_STRONG
                   if (bm.canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) return
 
                   val executor = ContextCompat.getMainExecutor(this)
                   val prompt = BiometricPrompt(this, executor,
                       object : BiometricPrompt.AuthenticationCallback() {
                           override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) = unlock()
+                          override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                              // Don't close app on cancel, just stay on PIN screen
+                          }
                       })
 
                   prompt.authenticate(
                       BiometricPrompt.PromptInfo.Builder()
                           .setTitle("Unlock App")
-                          .setSubtitle("Biometric se unlock karo")
+                          .setSubtitle("Scan fingerprint to unlock")
+                          .setNegativeButtonText("Use PIN")
                           .setAllowedAuthenticators(auth)
                           .build()
                   )
@@ -621,6 +631,7 @@ jobs:
               private fun unlock() {
                   AppLockAccessibilityService.currentlyLocked = null
                   finish()
+                  overridePendingTransition(0, 0)
               }
 
               override fun onBackPressed() {
@@ -632,6 +643,7 @@ jobs:
           }
           EOF
 
+          # Highly optimized Accessibility Service for FAST lock
           cat > app/src/main/java/com/applock/AppLockAccessibilityService.kt << 'EOF'
           package com.applock
 
@@ -647,14 +659,19 @@ jobs:
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {
                   if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
                   val pkg = event.packageName?.toString() ?: return
-                  if (pkg == packageName || pkg == "com.android.systemui") return
+                  
+                  // Ignore System UI, our own app, and launcher
+                  if (pkg == packageName || pkg == "com.android.systemui" || 
+                      pkg.contains("launcher") || pkg.contains("home")) return
 
                   val locked = Prefs.getLockedApps(this)
                   if (locked.contains(pkg) && currentlyLocked != pkg) {
                       currentlyLocked = pkg
                       val intent = Intent(this, LockActivity::class.java).apply {
-                          putExtra("target_pkg", pkg)
-                          flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                          flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
+                                  Intent.FLAG_ACTIVITY_CLEAR_TOP or 
+                                  Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                                  Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
                       }
                       startActivity(intent)
                   }
@@ -692,8 +709,8 @@ jobs:
                   for (app in apps) {
                       val cb = CheckBox(this).apply {
                           text = pm.getApplicationLabel(app).toString()
-                          // Fixed here: removed 'text.'
                           setTextColor(0xFFFFFFFF.toInt())
+                          textSize = 16f
                           isChecked = locked.contains(app.packageName)
                           setOnCheckedChangeListener { _, checked ->
                               if (checked) locked.add(app.packageName)
@@ -706,80 +723,6 @@ jobs:
                   saveBtn.setOnClickListener {
                       Prefs.setLockedApps(this, locked)
                       finish()
-                  }
-              }
-          }
-          EOF
-
-          cat > app/src/main/java/com/applock/PatternView.kt << 'EOF'
-          package com.applock
-
-          import android.content.Context
-          import android.graphics.Canvas
-          import android.graphics.Color
-          import android.graphics.Paint
-          import android.util.AttributeSet
-          import android.view.MotionEvent
-          import android.view.View
-
-          class PatternView @JvmOverloads constructor(
-              context: Context, attrs: AttributeSet? = null
-          ) : View(context, attrs) {
-
-              var onPatternComplete: ((String) -> Unit)? = null
-              private val points = Array(9) { FloatArray(2) }
-              private val selected = mutableListOf<Int>()
-              private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                  color = Color.GRAY; style = Paint.Style.FILL
-              }
-              private val selPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                  color = Color.parseColor("#03DAC6"); style = Paint.Style.FILL
-              }
-              private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                  color = Color.parseColor("#6200EE"); strokeWidth = 10f; style = Paint.Style.STROKE
-              }
-              private var radius = 40f
-
-              override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
-                  super.onSizeChanged(w, h, ow, oh)
-                  val size = minOf(w, h) / 3f
-                  radius = size / 6f
-                  val off = size / 2f
-                  for (r in 0..2) for (c in 0..2) {
-                      points[r * 3 + c][0] = c * size + off
-                      points[r * 3 + c][1] = r * size + off
-                  }
-              }
-
-              override fun onDraw(canvas: Canvas) {
-                  super.onDraw(canvas)
-                  for (i in 0 until 9) {
-                      canvas.drawCircle(points[i][0], points[i][1], radius,
-                          if (selected.contains(i)) selPaint else dotPaint)
-                  }
-                  for (i in 0 until selected.size - 1) {
-                      val a = points[selected[i]]; val b = points[selected[i + 1]]
-                      canvas.drawLine(a[0], a[1], b[0], b[1], linePaint)
-                  }
-              }
-
-              override fun onTouchEvent(event: MotionEvent): Boolean {
-                  when (event.action) {
-                      MotionEvent.ACTION_DOWN -> { selected.clear(); addNear(event.x, event.y) }
-                      MotionEvent.ACTION_MOVE -> addNear(event.x, event.y)
-                      MotionEvent.ACTION_UP -> {
-                          if (selected.isNotEmpty()) onPatternComplete?.invoke(selected.joinToString("-"))
-                          postDelayed({ selected.clear(); invalidate() }, 300)
-                      }
-                  }
-                  invalidate()
-                  return true
-              }
-
-              private fun addNear(x: Float, y: Float) {
-                  for (i in 0 until 9) {
-                      val dx = x - points[i][0]; val dy = y - points[i][1]
-                      if (dx * dx + dy * dy < radius * radius * 4 && !selected.contains(i)) selected.add(i)
                   }
               }
           }
