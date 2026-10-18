@@ -89,8 +89,8 @@ jobs:
                   applicationId "com.applock"
                   minSdk 24
                   targetSdk 34
-                  versionCode 2
-                  versionName "2.0"
+                  versionCode 4
+                  versionName "4.0"
               }
 
               buildTypes {
@@ -246,7 +246,6 @@ jobs:
           </vector>
           EOF
 
-          # Re-added missing activity_main.xml
           cat > app/src/main/res/layout/activity_main.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -300,6 +299,7 @@ jobs:
           </LinearLayout>
           EOF
 
+          # 4 Dots UI added here
           cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -327,14 +327,15 @@ jobs:
                   android:textSize="20sp"
                   android:layout_marginBottom="24dp"/>
 
+              <!-- Initial dots -->
               <TextView
                   android:id="@+id/tvPinDisplay"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="----"
+                  android:text="○ ○ ○ ○"
                   android:textColor="@color/accent"
-                  android:textSize="32sp"
-                  android:letterSpacing="0.5"
+                  android:textSize="40sp"
+                  android:letterSpacing="0.2"
                   android:textStyle="bold"
                   android:layout_marginBottom="32dp"/>
 
@@ -636,8 +637,11 @@ jobs:
               }
 
               private fun updateDisplay() {
-                  val display = currentPin + "-".repeat(4 - currentPin.length)
-                  tvPinDisplay.text = display
+                  val display = StringBuilder()
+                  for (i in 0 until 4) {
+                      display.append(if (i < currentPin.length) "● " else "○ ")
+                  }
+                  tvPinDisplay.text = display.toString().trim()
               }
 
               private fun verifyPin() {
@@ -658,7 +662,9 @@ jobs:
                   val executor = ContextCompat.getMainExecutor(this)
                   val prompt = BiometricPrompt(this, executor,
                       object : BiometricPrompt.AuthenticationCallback() {
-                          override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) = unlock()
+                          override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) {
+                              unlock()
+                          }
                           override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                           }
                       })
@@ -666,7 +672,7 @@ jobs:
                   prompt.authenticate(
                       BiometricPrompt.PromptInfo.Builder()
                           .setTitle("Unlock App")
-                          .setSubtitle("Scan fingerprint to unlock")
+                          .setSubtitle("Scan fingerprint or use PIN")
                           .setNegativeButtonText("Use PIN")
                           .setAllowedAuthenticators(auth)
                           .build()
@@ -674,7 +680,6 @@ jobs:
               }
 
               private fun unlock() {
-                  AppLockAccessibilityService.currentlyLocked = null
                   finish()
                   overridePendingTransition(0, 0)
               }
@@ -705,7 +710,10 @@ jobs:
                   val pkg = event.packageName?.toString() ?: return
                   
                   if (pkg == packageName || pkg == "com.android.systemui" || 
-                      pkg.contains("launcher") || pkg.contains("home")) return
+                      pkg.contains("launcher") || pkg.contains("home")) {
+                      currentlyLocked = null
+                      return
+                  }
 
                   val locked = Prefs.getLockedApps(this)
                   if (locked.contains(pkg) && currentlyLocked != pkg) {
