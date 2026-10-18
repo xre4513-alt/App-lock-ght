@@ -89,8 +89,8 @@ jobs:
                   applicationId "com.applock"
                   minSdk 24
                   targetSdk 34
-                  versionCode 5
-                  versionName "5.0"
+                  versionCode 6
+                  versionName "6.0"
               }
 
               buildTypes {
@@ -154,12 +154,12 @@ jobs:
 
                   <activity android:name=".SetupActivity" android:exported="false" />
 
+                  <!-- Removed noHistory to prevent biometric crash -->
                   <activity
                       android:name=".LockActivity"
                       android:exported="false"
-                      android:launchMode="singleInstance"
-                      android:excludeFromRecents="true"
-                      android:noHistory="true" />
+                      android:launchMode="singleTop"
+                      android:excludeFromRecents="true" />
 
                   <activity android:name=".AppListActivity" android:exported="false" />
 
@@ -609,15 +609,14 @@ jobs:
                   tvPinDisplay = findViewById(R.id.tvPinDisplay)
                   btnBiometric = findViewById(R.id.btnBiometric)
                   
-                  // Set initial dots
                   updateDisplay()
 
                   if (Prefs.isBiometricEnabled(this)) {
                       btnBiometric.visibility = View.VISIBLE
-                      // 300ms delay so the screen loads fully before the popup shows
+                      // 400ms delay ensures the screen is fully rendered
                       window.decorView.postDelayed({
                           if (!isFinishing) showBiometric()
-                      }, 300)
+                      }, 400)
                   } else {
                       btnBiometric.visibility = View.GONE
                   }
@@ -665,39 +664,54 @@ jobs:
 
               private fun showBiometric() {
                   val bm = BiometricManager.from(this)
-                  // Use WEAK or STRONG to support all phone sensors
-                  val auth = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.BIOMETRIC_STRONG
+                  // BIOMETRIC_WEAK is compatible with almost all fingerprint sensors
+                  val auth = BiometricManager.Authenticators.BIOMETRIC_WEAK
                   
-                  if (bm.canAuthenticate(auth) == BiometricManager.BIOMETRIC_SUCCESS) {
-                      val executor = ContextCompat.getMainExecutor(this)
-                      val prompt = BiometricPrompt(this, executor,
-                          object : BiometricPrompt.AuthenticationCallback() {
-                              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                  super.onAuthenticationSucceeded(result)
-                                  unlock()
-                              }
-                              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                                  super.onAuthenticationError(errorCode, errString)
-                                  // Ignore cancel, stay on PIN screen
-                              }
-                          })
+                  when (bm.canAuthenticate(auth)) {
+                      BiometricManager.BIOMETRIC_SUCCESS -> {
+                          val executor = ContextCompat.getMainExecutor(this)
+                          val prompt = BiometricPrompt(this, executor,
+                              object : BiometricPrompt.AuthenticationCallback() {
+                                  override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                      super.onAuthenticationSucceeded(result)
+                                      unlock()
+                                  }
+                                  override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                      super.onAuthenticationError(errorCode, errString)
+                                      if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                                          // User clicked "Use PIN"
+                                      } else if (errorCode == BiometricPrompt.ERROR_LOCKOUT || errorCode == BiometricPrompt.ERROR_LOCKOUT_PERMANENT) {
+                                          Toast.makeText(this@LockActivity, "Biometric locked out. Use PIN.", Toast.LENGTH_LONG).show()
+                                      }
+                                  }
+                              })
 
-                      prompt.authenticate(
-                          BiometricPrompt.PromptInfo.Builder()
-                              .setTitle("Unlock App")
-                              .setSubtitle("Scan fingerprint to unlock")
-                              .setNegativeButtonText("Use PIN")
-                              .setAllowedAuthenticators(auth)
-                              .build()
-                      )
-                  } else {
-                      Toast.makeText(this, "Fingerprint not setup in phone", Toast.LENGTH_LONG).show()
-                      btnBiometric.visibility = View.GONE
+                          prompt.authenticate(
+                              BiometricPrompt.PromptInfo.Builder()
+                                  .setTitle("Unlock App")
+                                  .setSubtitle("Scan fingerprint to unlock")
+                                  .setNegativeButtonText("Use PIN")
+                                  .setAllowedAuthenticators(auth)
+                                  .build()
+                          )
+                      }
+                      BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+                          Toast.makeText(this, "No fingerprint hardware found", Toast.LENGTH_SHORT).show()
+                      }
+                      BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+                          Toast.makeText(this, "Fingerprint hardware unavailable", Toast.LENGTH_SHORT).show()
+                      }
+                      BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                          Toast.makeText(this, "No fingerprint set up in phone settings", Toast.LENGTH_LONG).show()
+                          btnBiometric.visibility = View.GONE
+                      }
+                      else -> {
+                          Toast.makeText(this, "Biometric not available", Toast.LENGTH_SHORT).show()
+                      }
                   }
               }
 
               private fun unlock() {
-                  // Add app to session unlocked list so it doesn't loop
                   targetPkg?.let { AppLockAccessibilityService.unlockedApps.add(it) }
                   finish()
                   overridePendingTransition(0, 0)
@@ -721,33 +735,41 @@ jobs:
 
           class AppLockAccessibilityService : AccessibilityService() {
               companion object {
-                  // Keep track of apps unlocked in this session
                   val unlockedApps = mutableSetOf<String>()
+                  private var lastLockedPkg = ""
+                  private var lastLockTime = 0L
               }
 
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {
                   if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
                   val pkg = event.packageName?.toString() ?: return
 
-                  // If user goes to home screen, reset the unlocked session
                   if (pkg.contains("launcher") || pkg.contains("home")) {
                       unlockedApps.clear()
+                      lastLockedPkg = ""
                       return
                   }
 
-                  if (pkg == "com.android.systemui") return // ignore system overlays
-                  if (pkg == packageName) return // ignore our own LockActivity
+                  if (pkg == "com.android.systemui") return
+                  if (pkg == packageName) return
 
                   val locked = Prefs.getLockedApps(this)
                   if (locked.contains(pkg) && !unlockedApps.contains(pkg)) {
-                      val intent = Intent(this, LockActivity::class.java).apply {
-                          putExtra("pkg", pkg)
-                          flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
-                                  Intent.FLAG_ACTIVITY_CLEAR_TOP or 
-                                  Intent.FLAG_ACTIVITY_NO_ANIMATION or
-                                  Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                      val currentTime = System.currentTimeMillis()
+                      // 1 second debounce to prevent double lock screen launch
+                      if (pkg != lastLockedPkg || currentTime - lastLockTime > 1000) {
+                          lastLockedPkg = pkg
+                          lastLockTime = currentTime
+                          
+                          val intent = Intent(this, LockActivity::class.java).apply {
+                              putExtra("pkg", pkg)
+                              flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
+                                      Intent.FLAG_ACTIVITY_CLEAR_TOP or 
+                                      Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                                      Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                          }
+                          startActivity(intent)
                       }
-                      startActivity(intent)
                   }
               }
 
