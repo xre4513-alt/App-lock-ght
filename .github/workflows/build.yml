@@ -89,8 +89,8 @@ jobs:
                   applicationId "com.applock"
                   minSdk 24
                   targetSdk 34
-                  versionCode 4
-                  versionName "4.0"
+                  versionCode 5
+                  versionName "5.0"
               }
 
               buildTypes {
@@ -123,6 +123,7 @@ jobs:
               xmlns:tools="http://schemas.android.com/tools">
 
               <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+              <uses-permission android:name="android.permission.USE_FINGERPRINT" />
               <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
                   tools:ignore="ProtectedPermissions" />
               <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -299,7 +300,6 @@ jobs:
           </LinearLayout>
           EOF
 
-          # 4 Dots UI added here
           cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -327,7 +327,7 @@ jobs:
                   android:textSize="20sp"
                   android:layout_marginBottom="24dp"/>
 
-              <!-- Initial dots -->
+              <!-- 4 Dots UI -->
               <TextView
                   android:id="@+id/tvPinDisplay"
                   android:layout_width="wrap_content"
@@ -598,17 +598,26 @@ jobs:
               private var currentPin = ""
               private lateinit var tvPinDisplay: TextView
               private lateinit var btnBiometric: ImageView
+              private var targetPkg: String? = null
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_lock)
 
+                  targetPkg = intent.getStringExtra("pkg")
+                  
                   tvPinDisplay = findViewById(R.id.tvPinDisplay)
                   btnBiometric = findViewById(R.id.btnBiometric)
+                  
+                  // Set initial dots
+                  updateDisplay()
 
                   if (Prefs.isBiometricEnabled(this)) {
                       btnBiometric.visibility = View.VISIBLE
-                      showBiometric()
+                      // 300ms delay so the screen loads fully before the popup shows
+                      window.decorView.postDelayed({
+                          if (!isFinishing) showBiometric()
+                      }, 300)
                   } else {
                       btnBiometric.visibility = View.GONE
                   }
@@ -656,30 +665,40 @@ jobs:
 
               private fun showBiometric() {
                   val bm = BiometricManager.from(this)
-                  val auth = BiometricManager.Authenticators.BIOMETRIC_STRONG
-                  if (bm.canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) return
+                  // Use WEAK or STRONG to support all phone sensors
+                  val auth = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.BIOMETRIC_STRONG
+                  
+                  if (bm.canAuthenticate(auth) == BiometricManager.BIOMETRIC_SUCCESS) {
+                      val executor = ContextCompat.getMainExecutor(this)
+                      val prompt = BiometricPrompt(this, executor,
+                          object : BiometricPrompt.AuthenticationCallback() {
+                              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                  super.onAuthenticationSucceeded(result)
+                                  unlock()
+                              }
+                              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                  super.onAuthenticationError(errorCode, errString)
+                                  // Ignore cancel, stay on PIN screen
+                              }
+                          })
 
-                  val executor = ContextCompat.getMainExecutor(this)
-                  val prompt = BiometricPrompt(this, executor,
-                      object : BiometricPrompt.AuthenticationCallback() {
-                          override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) {
-                              unlock()
-                          }
-                          override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                          }
-                      })
-
-                  prompt.authenticate(
-                      BiometricPrompt.PromptInfo.Builder()
-                          .setTitle("Unlock App")
-                          .setSubtitle("Scan fingerprint or use PIN")
-                          .setNegativeButtonText("Use PIN")
-                          .setAllowedAuthenticators(auth)
-                          .build()
-                  )
+                      prompt.authenticate(
+                          BiometricPrompt.PromptInfo.Builder()
+                              .setTitle("Unlock App")
+                              .setSubtitle("Scan fingerprint to unlock")
+                              .setNegativeButtonText("Use PIN")
+                              .setAllowedAuthenticators(auth)
+                              .build()
+                      )
+                  } else {
+                      Toast.makeText(this, "Fingerprint not setup in phone", Toast.LENGTH_LONG).show()
+                      btnBiometric.visibility = View.GONE
+                  }
               }
 
               private fun unlock() {
+                  // Add app to session unlocked list so it doesn't loop
+                  targetPkg?.let { AppLockAccessibilityService.unlockedApps.add(it) }
                   finish()
                   overridePendingTransition(0, 0)
               }
@@ -702,23 +721,27 @@ jobs:
 
           class AppLockAccessibilityService : AccessibilityService() {
               companion object {
-                  var currentlyLocked: String? = null
+                  // Keep track of apps unlocked in this session
+                  val unlockedApps = mutableSetOf<String>()
               }
 
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {
                   if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
                   val pkg = event.packageName?.toString() ?: return
-                  
-                  if (pkg == packageName || pkg == "com.android.systemui" || 
-                      pkg.contains("launcher") || pkg.contains("home")) {
-                      currentlyLocked = null
+
+                  // If user goes to home screen, reset the unlocked session
+                  if (pkg.contains("launcher") || pkg.contains("home")) {
+                      unlockedApps.clear()
                       return
                   }
 
+                  if (pkg == "com.android.systemui") return // ignore system overlays
+                  if (pkg == packageName) return // ignore our own LockActivity
+
                   val locked = Prefs.getLockedApps(this)
-                  if (locked.contains(pkg) && currentlyLocked != pkg) {
-                      currentlyLocked = pkg
+                  if (locked.contains(pkg) && !unlockedApps.contains(pkg)) {
                       val intent = Intent(this, LockActivity::class.java).apply {
+                          putExtra("pkg", pkg)
                           flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
                                   Intent.FLAG_ACTIVITY_CLEAR_TOP or 
                                   Intent.FLAG_ACTIVITY_NO_ANIMATION or
