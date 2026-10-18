@@ -1,0 +1,795 @@
+name: Build App Lock APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Install Gradle 8.7
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip -d /opt
+          echo "/opt/gradle-8.7/bin" >> $GITHUB_PATH
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Create all project files
+        run: |
+          mkdir -p app/src/main/java/com/applock
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/drawable
+
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "AppLock"
+          include ':app'
+          EOF
+
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+          }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+
+          android {
+              namespace 'com.applock'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.applock"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.biometric:biometric:1.1.0'
+              implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
+
+              <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+              <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+                  tools:ignore="ProtectedPermissions" />
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+                  tools:ignore="QueryAllPackagesPermission" />
+
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppLock">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <activity android:name=".SetupActivity" android:exported="false" />
+
+                  <activity
+                      android:name=".LockActivity"
+                      android:exported="false"
+                      android:launchMode="singleTask"
+                      android:excludeFromRecents="true" />
+
+                  <activity android:name=".AppListActivity" android:exported="false" />
+
+                  <service
+                      android:name=".AppLockAccessibilityService"
+                      android:exported="false"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config" />
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">App Lock</string>
+              <string name="accessibility_desc">App Lock uses accessibility to detect opened apps and lock them.</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <resources>
+              <color name="primary">#6200EE</color>
+              <color name="primaryDark">#3700B3</color>
+              <color name="accent">#03DAC6</color>
+              <color name="background">#121212</color>
+              <color name="textColor">#FFFFFF</color>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/themes.xml << 'EOF'
+          <resources>
+              <style name="Theme.AppLock" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+                  <item name="colorPrimary">@color/primary</item>
+                  <item name="colorPrimaryDark">@color/primaryDark</item>
+                  <item name="colorAccent">@color/accent</item>
+                  <item name="android:windowBackground">@color/background</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/xml/accessibility_service_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canRetrieveWindowContent="true"
+              android:description="@string/accessibility_desc"
+              android:notificationTimeout="100" />
+          EOF
+
+          cat > app/src/main/res/drawable/ic_lock.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp"
+              android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M12,17c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM18,8h-1L17,6c0,-2.76 -2.24,-5 -5,-5S7,3.24 7,6v2L6,8c-1.1,0 -2,0.9 -2,2v10c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2L20,10c0,-1.1 -0.9,-2 -2,-2zM9,6c0,-1.66 1.34,-3 3,-3s3,1.34 3,3v2L9,8L9,6zM18,20L6,20L6,10h12v10z"/>
+          </vector>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#6200EE" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,30 C44,30 36,38 36,48 L36,54 L30,54 L30,78 L78,78 L78,54 L72,54 L72,48 C72,38 64,30 54,30 Z M54,36 C61,36 66,41 66,48 L66,54 L42,54 L42,48 C42,41 47,36 54,36 Z M54,62 C57,62 60,65 60,68 C60,71 57,74 54,74 C51,74 48,71 48,68 C48,65 51,62 54,62 Z"/>
+          </vector>
+          EOF
+
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="24dp"
+              android:gravity="center"
+              android:background="@color/background">
+
+              <ImageView
+                  android:layout_width="100dp"
+                  android:layout_height="100dp"
+                  android:src="@drawable/ic_launcher"
+                  android:layout_marginBottom="16dp"/>
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="App Lock"
+                  android:textColor="@color/textColor"
+                  android:textSize="32sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="40dp"/>
+
+              <Button
+                  android:id="@+id/btnApps"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Select Apps to Lock"
+                  android:layout_marginBottom="12dp"/>
+
+              <Button
+                  android:id="@+id/btnAccessibility"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Enable Accessibility Service"
+                  android:layout_marginBottom="12dp"/>
+
+              <Button
+                  android:id="@+id/btnChangeLock"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Change PIN / Pattern"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/activity_setup.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="24dp"
+              android:gravity="center"
+              android:background="@color/background">
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Setup App Lock"
+                  android:textColor="@color/textColor"
+                  android:textSize="28sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="24dp"/>
+
+              <EditText
+                  android:id="@+id/etPin"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Enter 4-digit PIN"
+                  android:textColorHint="#888888"
+                  android:textColor="@color/textColor"
+                  android:inputType="numberPassword"
+                  android:maxLength="4"
+                  android:layout_marginBottom="12dp"/>
+
+              <EditText
+                  android:id="@+id/etPattern"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Pattern (e.g., 0-1-2-5-8)"
+                  android:textColorHint="#888888"
+                  android:textColor="@color/textColor"
+                  android:layout_marginBottom="24dp"/>
+
+              <Button
+                  android:id="@+id/btnSave"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Save"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/activity_lock.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="24dp"
+              android:gravity="center"
+              android:background="@color/background">
+
+              <ImageView
+                  android:layout_width="80dp"
+                  android:layout_height="80dp"
+                  android:src="@drawable/ic_lock"
+                  android:layout_marginBottom="16dp"/>
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="App Locked"
+                  android:textColor="@color/textColor"
+                  android:textSize="24sp"
+                  android:layout_marginBottom="24dp"/>
+
+              <EditText
+                  android:id="@+id/etUnlockPin"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Enter 4-digit PIN"
+                  android:textColorHint="#888888"
+                  android:textColor="@color/textColor"
+                  android:inputType="numberPassword"
+                  android:maxLength="4"
+                  android:layout_marginBottom="8dp"/>
+
+              <Button
+                  android:id="@+id/btnUnlockPin"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Unlock with PIN"
+                  android:layout_marginBottom="12dp"/>
+
+              <EditText
+                  android:id="@+id/etUnlockPattern"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Enter Pattern"
+                  android:textColorHint="#888888"
+                  android:textColor="@color/textColor"
+                  android:layout_marginBottom="8dp"/>
+
+              <Button
+                  android:id="@+id/btnUnlockPattern"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Unlock with Pattern"
+                  android:layout_marginBottom="12dp"/>
+
+              <Button
+                  android:id="@+id/btnBiometric"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Use Fingerprint / Face"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/activity_app_list.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:background="@color/background">
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Select Apps to Lock"
+                  android:textColor="@color/textColor"
+                  android:textSize="22sp"
+                  android:padding="16dp"/>
+
+              <ScrollView
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1">
+                  <LinearLayout
+                      android:id="@+id/appListContainer"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:padding="16dp"/>
+              </ScrollView>
+
+              <Button
+                  android:id="@+id/btnSaveApps"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Save"
+                  android:layout_margin="16dp"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/java/com/applock/Prefs.kt << 'EOF'
+          package com.applock
+
+          import android.content.Context
+          import android.content.SharedPreferences
+          import androidx.security.crypto.EncryptedSharedPreferences
+          import androidx.security.crypto.MasterKey
+
+          object Prefs {
+              private const val FILE = "applock_prefs"
+              private const val KEY_PIN = "pin"
+              private const val KEY_PATTERN = "pattern"
+              private const val KEY_SETUP = "setup_done"
+              private const val KEY_APPS = "locked_apps"
+
+              private fun prefs(ctx: Context): SharedPreferences {
+                  return try {
+                      val key = MasterKey.Builder(ctx)
+                          .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                          .build()
+                      EncryptedSharedPreferences.create(
+                          ctx, FILE, key,
+                          EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                          EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                      )
+                  } catch (e: Exception) {
+                      ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+                  }
+              }
+
+              fun setPin(ctx: Context, pin: String) = prefs(ctx).edit().putString(KEY_PIN, pin).apply()
+              fun getPin(ctx: Context): String? = prefs(ctx).getString(KEY_PIN, null)
+              fun setPattern(ctx: Context, p: String) = prefs(ctx).edit().putString(KEY_PATTERN, p).apply()
+              fun getPattern(ctx: Context): String? = prefs(ctx).getString(KEY_PATTERN, null)
+              fun isSetup(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_SETUP, false)
+              fun setSetup(ctx: Context, done: Boolean) = prefs(ctx).edit().putBoolean(KEY_SETUP, done).apply()
+              fun getLockedApps(ctx: Context): MutableSet<String> =
+                  (prefs(ctx).getStringSet(KEY_APPS, mutableSetOf()) ?: mutableSetOf()).toMutableSet()
+              fun setLockedApps(ctx: Context, s: Set<String>) = prefs(ctx).edit().putStringSet(KEY_APPS, s).apply()
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/MainActivity.kt << 'EOF'
+          package com.applock
+
+          import android.content.Intent
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.widget.Button
+          import androidx.appcompat.app.AppCompatActivity
+
+          class MainActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+
+                  if (!Prefs.isSetup(this)) {
+                      startActivity(Intent(this, SetupActivity::class.java))
+                      finish()
+                      return
+                  }
+
+                  findViewById<Button>(R.id.btnApps).setOnClickListener {
+                      startActivity(Intent(this, AppListActivity::class.java))
+                  }
+
+                  findViewById<Button>(R.id.btnAccessibility).setOnClickListener {
+                      startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                  }
+
+                  findViewById<Button>(R.id.btnChangeLock).setOnClickListener {
+                      Prefs.setSetup(this, false)
+                      startActivity(Intent(this, SetupActivity::class.java))
+                      finish()
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/SetupActivity.kt << 'EOF'
+          package com.applock
+
+          import android.content.Intent
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.Toast
+          import androidx.appcompat.app.AppCompatActivity
+
+          class SetupActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_setup)
+
+                  val pinInput = findViewById<EditText>(R.id.etPin)
+                  val patternInput = findViewById<EditText>(R.id.etPattern)
+                  val saveBtn = findViewById<Button>(R.id.btnSave)
+
+                  saveBtn.setOnClickListener {
+                      val pin = pinInput.text.toString()
+                      val pattern = patternInput.text.toString()
+
+                      if (pin.length != 4 || !pin.all { it.isDigit() }) {
+                          Toast.makeText(this, "Enter 4-digit PIN", Toast.LENGTH_SHORT).show()
+                          return@setOnClickListener
+                      }
+                      if (pattern.isEmpty()) {
+                          Toast.makeText(this, "Enter pattern (e.g., 0-1-2-5-8)", Toast.LENGTH_SHORT).show()
+                          return@setOnClickListener
+                      }
+
+                      Prefs.setPin(this, pin)
+                      Prefs.setPattern(this, pattern)
+                      Prefs.setSetup(this, true)
+                      Toast.makeText(this, "Setup complete!", Toast.LENGTH_SHORT).show()
+                      startActivity(Intent(this, MainActivity::class.java))
+                      finish()
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/LockActivity.kt << 'EOF'
+          package com.applock
+
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.Toast
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.biometric.BiometricManager
+          import androidx.biometric.BiometricPrompt
+          import androidx.core.content.ContextCompat
+
+          class LockActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_lock)
+
+                  showBiometric()
+
+                  val pinInput = findViewById<EditText>(R.id.etUnlockPin)
+                  val patternInput = findViewById<EditText>(R.id.etUnlockPattern)
+
+                  findViewById<Button>(R.id.btnUnlockPin).setOnClickListener {
+                      if (pinInput.text.toString() == Prefs.getPin(this)) unlock()
+                      else {
+                          Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show()
+                          pinInput.text?.clear()
+                      }
+                  }
+
+                  findViewById<Button>(R.id.btnUnlockPattern).setOnClickListener {
+                      if (patternInput.text.toString() == Prefs.getPattern(this)) unlock()
+                      else {
+                          Toast.makeText(this, "Wrong Pattern", Toast.LENGTH_SHORT).show()
+                          patternInput.text?.clear()
+                      }
+                  }
+
+                  findViewById<Button>(R.id.btnBiometric).setOnClickListener { showBiometric() }
+              }
+
+              private fun showBiometric() {
+                  val bm = BiometricManager.from(this)
+                  val auth = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                          BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                  if (bm.canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) return
+
+                  val executor = ContextCompat.getMainExecutor(this)
+                  val prompt = BiometricPrompt(this, executor,
+                      object : BiometricPrompt.AuthenticationCallback() {
+                          override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) = unlock()
+                      })
+
+                  prompt.authenticate(
+                      BiometricPrompt.PromptInfo.Builder()
+                          .setTitle("Unlock App")
+                          .setSubtitle("Biometric se unlock karo")
+                          .setAllowedAuthenticators(auth)
+                          .build()
+                  )
+              }
+
+              private fun unlock() {
+                  AppLockAccessibilityService.currentlyLocked = null
+                  finish()
+              }
+
+              override fun onBackPressed() {
+                  val i = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                  i.addCategory(android.content.Intent.CATEGORY_HOME)
+                  i.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                  startActivity(i)
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/AppLockAccessibilityService.kt << 'EOF'
+          package com.applock
+
+          import android.accessibilityservice.AccessibilityService
+          import android.content.Intent
+          import android.view.accessibility.AccessibilityEvent
+
+          class AppLockAccessibilityService : AccessibilityService() {
+              companion object {
+                  var currentlyLocked: String? = null
+              }
+
+              override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+                  if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+                  val pkg = event.packageName?.toString() ?: return
+                  if (pkg == packageName || pkg == "com.android.systemui") return
+
+                  val locked = Prefs.getLockedApps(this)
+                  if (locked.contains(pkg) && currentlyLocked != pkg) {
+                      currentlyLocked = pkg
+                      val intent = Intent(this, LockActivity::class.java).apply {
+                          putExtra("target_pkg", pkg)
+                          flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                      }
+                      startActivity(intent)
+                  }
+              }
+
+              override fun onInterrupt() {}
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/AppListActivity.kt << 'EOF'
+          package com.applock
+
+          import android.content.pm.PackageManager
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.CheckBox
+          import android.widget.LinearLayout
+          import androidx.appcompat.app.AppCompatActivity
+
+          class AppListActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_app_list)
+
+                  val container = findViewById<LinearLayout>(R.id.appListContainer)
+                  val saveBtn = findViewById<Button>(R.id.btnSaveApps)
+                  val locked = Prefs.getLockedApps(this)
+                  val pm = packageManager
+
+                  val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                      .filter { it.packageName != packageName &&
+                              pm.getLaunchIntentForPackage(it.packageName) != null }
+                      .sortedBy { pm.getApplicationLabel(it).toString() }
+
+                  for (app in apps) {
+                      val cb = CheckBox(this).apply {
+                          text = pm.getApplicationLabel(app).toString()
+                          text.setTextColor(0xFFFFFFFF.toInt())
+                          isChecked = locked.contains(app.packageName)
+                          setOnCheckedChangeListener { _, checked ->
+                              if (checked) locked.add(app.packageName)
+                              else locked.remove(app.packageName)
+                          }
+                      }
+                      container.addView(cb)
+                  }
+
+                  saveBtn.setOnClickListener {
+                      Prefs.setLockedApps(this, locked)
+                      finish()
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/applock/PatternView.kt << 'EOF'
+          package com.applock
+
+          import android.content.Context
+          import android.graphics.Canvas
+          import android.graphics.Color
+          import android.graphics.Paint
+          import android.util.AttributeSet
+          import android.view.MotionEvent
+          import android.view.View
+
+          class PatternView @JvmOverloads constructor(
+              context: Context, attrs: AttributeSet? = null
+          ) : View(context, attrs) {
+
+              var onPatternComplete: ((String) -> Unit)? = null
+              private val points = Array(9) { FloatArray(2) }
+              private val selected = mutableListOf<Int>()
+              private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.GRAY; style = Paint.Style.FILL
+              }
+              private val selPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.parseColor("#03DAC6"); style = Paint.Style.FILL
+              }
+              private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.parseColor("#6200EE"); strokeWidth = 10f; style = Paint.Style.STROKE
+              }
+              private var radius = 40f
+
+              override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+                  super.onSizeChanged(w, h, ow, oh)
+                  val size = minOf(w, h) / 3f
+                  radius = size / 6f
+                  val off = size / 2f
+                  for (r in 0..2) for (c in 0..2) {
+                      points[r * 3 + c][0] = c * size + off
+                      points[r * 3 + c][1] = r * size + off
+                  }
+              }
+
+              override fun onDraw(canvas: Canvas) {
+                  super.onDraw(canvas)
+                  for (i in 0 until 9) {
+                      canvas.drawCircle(points[i][0], points[i][1], radius,
+                          if (selected.contains(i)) selPaint else dotPaint)
+                  }
+                  for (i in 0 until selected.size - 1) {
+                      val a = points[selected[i]]; val b = points[selected[i + 1]]
+                      canvas.drawLine(a[0], a[1], b[0], b[1], linePaint)
+                  }
+              }
+
+              override fun onTouchEvent(event: MotionEvent): Boolean {
+                  when (event.action) {
+                      MotionEvent.ACTION_DOWN -> { selected.clear(); addNear(event.x, event.y) }
+                      MotionEvent.ACTION_MOVE -> addNear(event.x, event.y)
+                      MotionEvent.ACTION_UP -> {
+                          if (selected.isNotEmpty()) onPatternComplete?.invoke(selected.joinToString("-"))
+                          postDelayed({ selected.clear(); invalidate() }, 300)
+                      }
+                  }
+                  invalidate()
+                  return true
+              }
+
+              private fun addNear(x: Float, y: Float) {
+                  for (i in 0 until 9) {
+                      val dx = x - points[i][0]; val dy = y - points[i][1]
+                      if (dx * dx + dy * dy < radius * radius * 4 && !selected.contains(i)) selected.add(i)
+                  }
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppLock-APK
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
